@@ -1273,9 +1273,18 @@ POST(sys_get_robust_list)
    POST_MEM_WRITE(ARG3, sizeof(struct vki_size_t *));
 }
 
+struct pselect_sized_sigset {
+    const vki_sigset_t *ss;
+    vki_size_t ss_len;
+};
+struct pselect_adjusted_sigset {
+    struct pselect_sized_sigset ss; /* The actual syscall arg */
+    vki_sigset_t adjusted_ss;
+};
+
 PRE(sys_pselect6)
 {
-   *flags |= SfMayBlock;
+   *flags |= SfMayBlock | SfPostOnFail;
    PRINT("sys_pselect6 ( %ld, %#lx, %#lx, %#lx, %#lx, %#lx )",
          SARG1, ARG2, ARG3, ARG4, ARG5, ARG6);
    PRE_REG_READ6(long, "pselect6",
@@ -1294,8 +1303,34 @@ PRE(sys_pselect6)
 		     ARG4, ARG1/8 /* __FD_SETSIZE/8 */ );
    if (ARG5 != 0)
       PRE_MEM_READ( "pselect6(timeout)", ARG5, sizeof(struct vki_timeval) );
-   if (ARG6 != 0)
-      PRE_MEM_READ( "pselect6(sig)", ARG6, sizeof(void *)+sizeof(vki_size_t) );
+   if (ARG6 != 0) {
+      const struct pselect_sized_sigset *pss =
+          (struct pselect_sized_sigset *)ARG6;
+      PRE_MEM_READ( "pselect6(sig)", ARG6, sizeof(*pss) );
+      if (!ML_(safe_to_deref)(pss, sizeof(*pss))) {
+         ARG6 = 1; /* something recognisable to POST() hook */
+      } else {
+         struct pselect_adjusted_sigset *pas;
+         pas = VG_(malloc)("syswrap.pselect6.1", sizeof(*pas));
+         ARG6 = (Addr)pas;
+         pas->ss.ss = (void *)1;
+         pas->ss.ss_len = pss->ss_len;
+         if (pss->ss_len == sizeof(*pss->ss)) {
+            PRE_MEM_READ("pselect6(sig->ss)", (Addr)pss->ss, pss->ss_len);
+            if (ML_(safe_to_deref)(pss->ss, sizeof(*pss->ss))) {
+               pas->adjusted_ss = *pss->ss;
+               pas->ss.ss = &pas->adjusted_ss;
+               VG_(sanitize_client_sigmask)(&pas->adjusted_ss);
+            }
+         }
+      }
+   }
+}
+POST(sys_pselect6)
+{
+   if (ARG6 != 0 && ARG6 != 1) {
+       VG_(free)((struct pselect_adjusted_sigset *)ARG6);
+   }
 }
 
 PRE(sys_ppoll)
