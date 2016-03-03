@@ -62,6 +62,7 @@
 #include "priv_types_n_macros.h"
 #include "priv_syswrap-generic.h"
 #include "priv_syswrap-linux.h"
+#include "priv_syswrap-main.h"
 #include "priv_syswrap-xen.h"
 
 // Run a thread from beginning to end and return the thread's
@@ -1301,7 +1302,7 @@ PRE(sys_ppoll)
 {
    UInt i;
    struct vki_pollfd* ufds = (struct vki_pollfd *)ARG1;
-   *flags |= SfMayBlock;
+   *flags |= SfMayBlock | SfPostOnFail;
    PRINT("sys_ppoll ( %#lx, %lu, %#lx, %#lx, %lu )\n", ARG1,ARG2,ARG3,ARG4,ARG5);
    PRE_REG_READ5(long, "ppoll",
                  struct vki_pollfd *, ufds, unsigned int, nfds,
@@ -1319,17 +1320,34 @@ PRE(sys_ppoll)
 
    if (ARG3)
       PRE_MEM_READ( "ppoll(tsp)", ARG3, sizeof(struct vki_timespec) );
-   if (ARG4)
-      PRE_MEM_READ( "ppoll(sigmask)", ARG4, sizeof(vki_sigset_t) );
+   if (ARG4 != 0 && sizeof(vki_sigset_t) == ARG5) {
+      const vki_sigset_t *guest_sigmask = (vki_sigset_t *)ARG4;
+      PRE_MEM_READ( "ppoll(sigmask)", ARG4, ARG5);
+      if (!ML_(safe_to_deref)(guest_sigmask, sizeof(*guest_sigmask))) {
+         /* Something recognisable to POST() hook which'll fail with
+          * EFAULT. */
+         ARG4 = 1;
+      } else {
+         vki_sigset_t *vg_sigmask =
+             VG_(malloc)("syswrap.ppoll.1", sizeof(*vg_sigmask));
+         ARG4 = (Addr)vg_sigmask;
+         *vg_sigmask = *guest_sigmask;
+         VG_(sanitize_client_sigmask)(vg_sigmask);
+      }
+   }
 }
 
 POST(sys_ppoll)
 {
-   if (RES > 0) {
+   vg_assert(SUCCESS || FAILURE);
+   if (SUCCESS && (RES >= 0)) {
       UInt i;
       struct vki_pollfd* ufds = (struct vki_pollfd *)ARG1;
       for (i = 0; i < ARG2; i++)
 	 POST_MEM_WRITE( (Addr)(&ufds[i].revents), sizeof(ufds[i].revents) );
+   }
+   if (ARG4 != 0 && ARG5 == sizeof(vki_sigset_t) && ARG4 != 1) {
+      VG_(free)((vki_sigset_t *) ARG4);
    }
 }
 
