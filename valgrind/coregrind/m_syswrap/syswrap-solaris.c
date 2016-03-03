@@ -71,6 +71,7 @@
 
 #include "priv_types_n_macros.h"
 #include "priv_syswrap-generic.h"
+#include "priv_syswrap-main.h"
 #include "priv_syswrap-solaris.h"
 
 /* Return the number of non-dead and daemon threads.
@@ -7327,7 +7328,7 @@ PRE(sys_pollsys)
    UWord i;
    struct vki_pollfd *ufds = (struct vki_pollfd *)ARG1;
 
-   *flags |= SfMayBlock;
+   *flags |= SfMayBlock | SfPostOnFail;
 
    PRINT("sys_pollsys ( %#lx, %lu, %#lx, %#lx )", ARG1, ARG2, ARG3, ARG4);
    PRE_REG_READ4(long, "poll", pollfd_t *, fds, vki_nfds_t, nfds,
@@ -7343,18 +7344,35 @@ PRE(sys_pollsys)
 
    if (ARG3)
       PRE_MEM_READ("poll(timeout)", ARG3, sizeof(vki_timespec_t));
-   if (ARG4)
+
+   if (ARG4) {
       PRE_MEM_READ("poll(set)", ARG4, sizeof(vki_sigset_t));
+
+      /* Save the original ARG4 to unused ARG5. */
+      ARG5 = ARG4;
+
+      if (ML_(safe_to_deref)((vki_sigset_t *) ARG4, sizeof(vki_sigset_t))) {
+         ARG4 = (Addr) VG_(malloc)("syswrap.pollsys.1", sizeof(vki_sigset_t));
+         VG_(memcpy)((vki_sigset_t *) ARG4, (vki_sigset_t *) ARG5,
+                     sizeof(vki_sigset_t));
+         VG_(sanitize_client_sigmask)((vki_sigset_t *) ARG4);
+      }
+   }
 }
 
 POST(sys_pollsys)
 {
-   if (RES >= 0) {
+   vg_assert(SUCCESS || FAILURE);
+
+   if (SUCCESS && (RES >= 0)) {
       UWord i;
       vki_pollfd_t *ufds = (vki_pollfd_t*)ARG1;
       for (i = 0; i < ARG2; i++)
          POST_FIELD_WRITE(ufds[i].revents);
    }
+
+   if (ARG4 && (ARG4 != ARG5))
+      VG_(free)((vki_sigset_t *) ARG4);
 }
 
 PRE(sys_labelsys)

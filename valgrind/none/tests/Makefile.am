@@ -142,6 +142,7 @@ EXTRA_DIST = \
 	nestedfns.stderr.exp nestedfns.stdout.exp nestedfns.vgtest \
 	nodir.stderr.exp nodir.vgtest \
 	pending.stdout.exp pending.stderr.exp pending.vgtest \
+	ppoll_alarm.stdout.exp ppoll_alarm.stderr.exp ppoll_alarm.vgtest \
 	procfs-linux.stderr.exp-with-readlinkat \
 	procfs-linux.stderr.exp-without-readlinkat \
 	procfs-linux.vgtest \
@@ -215,6 +216,7 @@ check_PROGRAMS = \
 	mmap_fcntl_bug \
 	munmap_exe map_unaligned map_unmap mq \
 	pending \
+	ppoll_alarm \
 	procfs-cmdline-exe \
 	pth_atfork1 pth_blockedsig pth_cancel1 pth_cancel2 pth_cvsimple \
 	pth_empty pth_exit pth_exit2 pth_mutexspeed pth_once pth_rwlock \
