@@ -2,6 +2,7 @@
    https://bugs.kde.org/show_bug.cgi?id=359871
    where client program was able to successfully block VG_SIGVGKILL. */
 
+#define _GNU_SOURCE /* for ppoll */
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>

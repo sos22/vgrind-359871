@@ -291,6 +291,7 @@ libvexmultiarch_test_LDADD = \
 	../../VEX/libvexmultiarch-@VGCONF_ARCH_PRI@-@VGCONF_OS@.a \
 	../../VEX/libvex-@VGCONF_ARCH_PRI@-@VGCONF_OS@.a @LIB_UBSAN@
 libvexmultiarch_test_SOURCES = libvex_test.c
+ppoll_alarm_LDADD	= -lpthread
 pth_atfork1_LDADD	= -lpthread
 pth_blockedsig_LDADD	= -lpthread
 pth_cancel1_CFLAGS	= $(AM_CFLAGS) -Wno-shadow
