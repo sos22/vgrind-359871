@@ -1253,6 +1253,14 @@ int main(void)
    GO(__NR_sys_kexec_load, "ni");
    SY(__NR_sys_kexec_load); FAIL;
 
+   // __NR_ppselect6 308
+   GO(__NR_pselect6, "1s 5m");
+   SY(__NR_pselect6, x0+1, x0, x0, x0, x0, x0+1); FAIL;
+
+   // __NR_ppoll 309
+   GO(__NR_ppoll, "1s 3m");
+   SY(__NR_ppoll, x0, x0+1, x0, x0, 8); FAIL;
+
    // __NR_epoll_create1 329
    GO(__NR_epoll_create1, "1s 0m");
    SY(__NR_epoll_create1, x0); SUCC_OR_FAIL;
